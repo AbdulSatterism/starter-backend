@@ -96,6 +96,13 @@ const updateProfileToDB = async (
     throw new AppError(StatusCodes.NOT_FOUND, 'Blog not found');
   }
 
+  if (!isExistUser.verified) {
+    throw new AppError(
+      StatusCodes.BAD_REQUEST,
+      'Please verify your account first',
+    );
+  }
+
   if (payload.image && isExistUser.image) {
     unlinkFile(isExistUser.image);
   }
