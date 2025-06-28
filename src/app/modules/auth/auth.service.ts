@@ -20,6 +20,8 @@ import generateOTP from '../../../util/generateOTP';
 import { User } from '../user/user.model';
 import { ResetToken } from '../resetToken/resetToken.model';
 import AppError from '../../errors/AppError';
+import unlinkFile from '../../../shared/unlinkFile';
+import { downloadImage, facebookToken } from './auth.lib';
 
 //login
 const loginUserFromDB = async (payload: ILoginData) => {
@@ -355,6 +357,183 @@ const resendVerificationEmailToDB = async (email: string) => {
   );
 };
 
+//! login with google
+
+interface IGoogleLoginPayload {
+  email: string;
+  name: string;
+  image?: string;
+  uid: string;
+}
+
+const googleLogin = async (payload: IGoogleLoginPayload) => {
+  const { email, name, image, uid } = payload;
+
+  if (!email || !uid) {
+    throw new AppError(StatusCodes.BAD_REQUEST, 'Email and UID are required');
+  }
+
+  // Check if user exists by email
+  let user = await User.findOne({ email });
+
+  if (user?.image && image) {
+    unlinkFile(user?.image);
+  }
+
+  if (!user) {
+    // Create new user if doesn't exist
+    user = await User.create({
+      email,
+      name,
+      image: image || '',
+      googleId: uid,
+      role: 'USER',
+      verified: true, // Google accounts are pre-verified
+    });
+  } else if (!user.googleId) {
+    // Update existing user with Google ID if they haven't logged in with Google before
+    user = await User.findByIdAndUpdate(
+      user._id,
+      {
+        googleId: uid,
+        verified: true,
+        image: image || user.image, // Keep existing image if no new image provided
+      },
+      { new: true },
+    );
+  }
+
+  if (!user) {
+    throw new AppError(
+      StatusCodes.INTERNAL_SERVER_ERROR,
+      'Failed to create or update user',
+    );
+  }
+
+  // Generate tokens for authentication
+  const tokenPayload = {
+    id: user._id,
+    email: user.email,
+    role: user.role,
+  };
+
+  const accessToken = jwtHelper.createToken(
+    tokenPayload,
+    config.jwt.jwt_secret as Secret,
+    config.jwt.jwt_expire_in as string,
+  );
+
+  const refreshToken = jwtHelper.createToken(
+    tokenPayload,
+    config.jwt.jwtRefreshSecret as Secret,
+    config.jwt.jwtRefreshExpiresIn as string,
+  );
+
+  // Remove sensitive data before sending response
+  const userObject: any = user.toObject();
+  delete userObject.password;
+  delete userObject.authentication;
+
+  return {
+    user: userObject,
+    accessToken,
+    refreshToken,
+  };
+};
+
+const facebookLogin = async (payload: { token: string }) => {
+  if (!payload.token) {
+    throw new AppError(StatusCodes.BAD_REQUEST, 'Facebook token is required');
+  }
+
+  try {
+    const userData = await facebookToken(payload.token);
+
+    if (!userData?.email) {
+      throw new AppError(
+        StatusCodes.BAD_REQUEST,
+        'Unable to get email from Facebook account',
+      );
+    }
+
+    // Download Facebook image and get local URL/path
+    let localImage = '';
+    if (userData.picture?.data?.url) {
+      localImage = await downloadImage(
+        userData.picture.data.url,
+        userData?.id || '',
+      );
+    }
+
+    const userFields = {
+      name: userData.name || '',
+      email: userData.email,
+      image: localImage || '',
+      facebookId: userData.id,
+      role: 'USER' as const,
+      verified: true,
+    };
+
+    let user = await User.findOne({
+      $or: [{ email: userData.email }, { facebookId: userData.id }],
+    });
+
+    if (user?.image && localImage) {
+      unlinkFile(user?.image);
+    }
+
+    if (!user) {
+      user = await User.create(userFields);
+    } else if (!user.facebookId) {
+      user = await User.findByIdAndUpdate(
+        user._id,
+        {
+          ...userFields,
+          image: userFields.image || user.image,
+          name: userFields.name || user.name,
+        },
+        { new: true },
+      );
+    }
+
+    if (!user) {
+      throw new AppError(
+        StatusCodes.INTERNAL_SERVER_ERROR,
+        'Failed to create or update user',
+      );
+    }
+
+    const tokenPayload = {
+      id: user._id,
+      email: user.email,
+      role: user.role,
+    };
+
+    const [accessToken, refreshToken] = await Promise.all([
+      jwtHelper.createToken(
+        tokenPayload,
+        config.jwt.jwt_secret as Secret,
+        config.jwt.jwt_expire_in as string,
+      ),
+      jwtHelper.createToken(
+        tokenPayload,
+        config.jwt.jwtRefreshSecret as Secret,
+        config.jwt.jwtRefreshExpiresIn as string,
+      ),
+    ]);
+
+    const { password, authentication, ...userObject } = user.toObject();
+
+    return { user: userObject, accessToken, refreshToken };
+  } catch (error) {
+    if (error instanceof AppError) throw error;
+    throw new AppError(
+      StatusCodes.INTERNAL_SERVER_ERROR,
+      'Error processing Facebook login',
+    );
+  }
+};
+
 export const AuthService = {
   verifyEmailToDB,
   loginUserFromDB,
@@ -364,4 +543,6 @@ export const AuthService = {
   deleteAccountToDB,
   newAccessTokenToUser,
   resendVerificationEmailToDB,
+  googleLogin,
+  facebookLogin,
 };

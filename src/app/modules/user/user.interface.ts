@@ -7,6 +7,8 @@ export type IUser = {
   email: string;
   phone: string;
   password: string;
+  googleId?: string;
+  facebookId?: string;
   role?: 'ADMIN' | 'USER';
   gender?: 'MALE' | 'FEMALE' | 'OTHERS';
   image?: string;
