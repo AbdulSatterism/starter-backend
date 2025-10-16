@@ -1,5 +1,5 @@
 /* eslint-disable no-console */
-import colors from 'colors';
+import chalk from 'chalk';
 import { Server } from 'socket.io';
 import { logger } from '../shared/logger';
 
@@ -45,7 +45,7 @@ const socket = (io: Server) => {
 
     // Handle disconnection
     socket.on('disconnect', () => {
-      logger.info(colors.red('A user disconnect'));
+      logger.info(chalk.red('A user disconnect'));
     });
   });
 };

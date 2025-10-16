@@ -1,4 +1,4 @@
-import colors from 'colors';
+import chalk from 'chalk';
 import { User } from '../app/modules/user/user.model';
 import config from '../config';
 import { USER_ROLES } from '../enums/user';
@@ -20,7 +20,7 @@ const seedAdmin = async () => {
 
     if (!isExistSuperAdmin) {
       await User.create(superUser);
-      logger.info(colors.green('✔ admin created successfully!'));
+      logger.info(chalk.green('✔ admin created successfully!'));
     } else {
       console.log('Admin already exists.');
     }

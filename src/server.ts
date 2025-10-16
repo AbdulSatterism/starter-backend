@@ -1,7 +1,7 @@
 /* eslint-disable @typescript-eslint/ban-ts-comment */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 /* eslint-disable no-undef */
-import colors from 'colors';
+import chalk from 'chalk';
 import mongoose from 'mongoose';
 import { Server } from 'socket.io';
 import app from './app';
@@ -20,14 +20,14 @@ let server: any;
 async function main() {
   try {
     await mongoose.connect(config.database_url as string);
-    logger.info(colors.green('🚀 Database connected successfully'));
+    logger.info(chalk.green('🚀 Database connected successfully'));
 
     const port =
       typeof config.port === 'number' ? config.port : Number(config.port);
 
     server = app.listen(port, config.ip_address as string, () => {
       logger.info(
-        colors.yellow(`♻️  Application listening on port:${config.port}`),
+        chalk.yellow(`♻️  Application listening on port:${config.port}`),
       );
     });
 
@@ -44,7 +44,7 @@ async function main() {
     //@ts-ignore
     global.io = io;
   } catch (error) {
-    errorLogger.error(colors.red('🤢 Failed to connect Database'));
+    errorLogger.error(chalk.red('🤢 Failed to connect Database'));
   }
 
   //handle unhandleRejection
