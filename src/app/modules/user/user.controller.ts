@@ -6,7 +6,6 @@ import catchAsync from '../../../shared/catchAsync';
 import sendResponse from '../../../shared/sendResponse';
 import { UserService } from './user.service';
 import getFilePath from '../../../shared/getFilePath';
-import fs from 'fs';
 
 const createUser = catchAsync(async (req: Request, res: Response) => {
   const value = {
@@ -49,17 +48,7 @@ const getUserProfile = catchAsync(async (req: Request, res: Response) => {
 const updateProfile = catchAsync(async (req: Request, res: Response) => {
   const user = req.user;
 
-  let image;
-  if (req.files && 'image' in req.files && req.files.image[0]) {
-    image = `/images/${req.files.image[0].filename}`;
-  }
-
-  const value = {
-    image,
-    ...req.body,
-  };
-
-  const result = await UserService.updateProfileToDB(user, value);
+  const result = await UserService.updateProfileToDB(user, req.body);
 
   sendResponse(res, {
     success: true,

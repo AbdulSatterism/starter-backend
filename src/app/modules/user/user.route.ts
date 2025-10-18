@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import express, { NextFunction, Request, Response } from 'express';
+import express from 'express';
 import { USER_ROLES } from '../../../enums/user';
 import auth from '../../middlewares/auth';
 import fileUploadHandler from '../../middlewares/fileUploadHandler';
@@ -19,12 +19,8 @@ router.get('/all-user', auth(USER_ROLES.ADMIN), UserController.getAllUser);
 
 router.post(
   '/update-profile',
-  fileUploadHandler(),
+  fileUploadHandler({ image: { fileType: 'images', size: 5 * 1024 * 1024 } }),
   auth(USER_ROLES.USER, USER_ROLES.ADMIN),
-  (req: Request, res: Response, next: NextFunction) => {
-    req.body = JSON.parse(req.body.data);
-    next();
-  },
   validateRequest(UserValidation.updateUserProfileSchema),
   UserController.updateProfile,
 );
