@@ -17,7 +17,7 @@ router.post(
 
 router.get('/all-user', auth(USER_ROLES.ADMIN), UserController.getAllUser);
 
-router.post(
+router.patch(
   '/update-profile',
   fileUploadHandler({ image: { fileType: 'images', size: 5 * 1024 * 1024 } }),
   auth(USER_ROLES.USER, USER_ROLES.ADMIN),

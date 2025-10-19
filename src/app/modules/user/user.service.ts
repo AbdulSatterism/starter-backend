@@ -53,19 +53,21 @@ const getAllUsers = async (query: Record<string, unknown>) => {
   const size = parseInt(limit as string) || 10;
   const skip = (pages - 1) * size;
 
-  const result = await User.find()
-    .sort({ createdAt: -1 })
-    .skip(skip)
-    .limit(size)
-    .lean();
+  const [result, total] = await Promise.all([
+    User.find().sort({ createdAt: -1 }).skip(skip).limit(size).lean(),
+    User.countDocuments(),
+  ]);
 
-  const count = await User.countDocuments();
+  const totalPage = Math.ceil(total / size);
 
   return {
-    result,
-    totalData: count,
-    page: pages,
-    limit: size,
+    data: result,
+    meta: {
+      page: pages,
+      limit: size,
+      totalPage,
+      total,
+    },
   };
 };
 

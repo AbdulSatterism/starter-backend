@@ -26,11 +26,12 @@ const userSchema = new Schema<IUser, UserModal>(
     },
     googleId: {
       type: String,
-      unique: true,
     },
     facebookId: {
       type: String,
-      unique: true,
+    },
+    appleId: {
+      type: String,
     },
     phone: {
       type: String,
@@ -50,22 +51,6 @@ const userSchema = new Schema<IUser, UserModal>(
     },
     age: {
       type: Number,
-    },
-    height: {
-      type: Number,
-    },
-    weight: {
-      type: Number,
-    },
-    country: {
-      type: String,
-    },
-    fitnessLevel: {
-      type: String,
-      enum: ['BASIC', 'INTERMEDIATE', 'ADVANCED'],
-    },
-    injury: {
-      type: String,
     },
     payment: {
       type: Boolean,

@@ -9,15 +9,11 @@ export type IUser = {
   password: string;
   googleId?: string;
   facebookId?: string;
+  appleId?: string;
   role?: 'ADMIN' | 'USER';
   gender?: 'MALE' | 'FEMALE' | 'OTHERS';
   image?: string;
   age?: number;
-  height?: number;
-  weight?: number;
-  country?: string;
-  fitnessLevel?: 'BASIC' | 'INTERMEDIATE' | 'ADVANCED';
-  injury?: string;
   payment?: boolean;
   subscription?: boolean;
   isDeleted?: boolean;
