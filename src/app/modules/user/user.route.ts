@@ -3,6 +3,7 @@ import express from 'express';
 import { USER_ROLES } from '../../../enums/user';
 import auth from '../../middlewares/auth';
 import fileUploadHandler from '../../middlewares/fileUploadHandler';
+import { searchLimiter, signupLimiter } from '../../middlewares/rateLimiters';
 
 import { UserController } from './user.controller';
 import { UserValidation } from './user.validation';
@@ -11,11 +12,16 @@ const router = express.Router();
 
 router.post(
   '/create-user',
+  signupLimiter,
   validateRequest(UserValidation.createUserSchema),
   UserController.createUser,
 );
 
-router.get('/all-user', auth(USER_ROLES.ADMIN), UserController.getAllUser);
+router.get(
+  '/all-user',
+  auth(USER_ROLES.ADMIN, USER_ROLES.USER),
+  UserController.getAllUser,
+);
 
 router.patch(
   '/update-profile',
@@ -43,8 +49,13 @@ router.get(
 router.get(
   '/user-search',
   auth(USER_ROLES.ADMIN, USER_ROLES.USER),
+  searchLimiter,
   UserController.searchByPhone,
 );
+
+router.get('/batch', auth(USER_ROLES.ADMIN), UserController.getUsersBatch);
+
+router.get('/stats', auth(USER_ROLES.ADMIN), UserController.getUserStats);
 
 router.get(
   '/profile',

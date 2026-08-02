@@ -6,8 +6,10 @@ import mongoose from 'mongoose';
 import { Server } from 'socket.io';
 import app from './app';
 import config from './config';
+import { closeQueueWorkers, startQueueWorkers } from './queues/queueManager';
 import { socketHelper } from './helpers/socketHelper';
 import { errorLogger, logger } from './shared/logger';
+import { redisStore } from './shared/redis';
 import seedAdmin from './DB';
 
 //uncaught exception
@@ -21,6 +23,11 @@ async function main() {
   try {
     await mongoose.connect(config.database_url as string);
     logger.info(chalk.green('🚀 Database connected successfully'));
+
+    if (redisStore.enabled) {
+      await redisStore.ping();
+      logger.info(chalk.green('🚀 Redis connection healthy'));
+    }
 
     const port =
       typeof config.port === 'number' ? config.port : Number(config.port);
@@ -43,8 +50,11 @@ async function main() {
     socketHelper.socket(io);
     //@ts-ignore
     global.io = io;
+
+    await startQueueWorkers();
   } catch (error) {
     errorLogger.error(chalk.red('🤢 Failed to connect Database'));
+    process.exit(1);
   }
 
   //handle unhandleRejection
@@ -62,10 +72,31 @@ async function main() {
 
 main();
 
-//SIGTERM
-process.on('SIGTERM', () => {
-  logger.info('SIGTERM IS RECEIVE');
-  if (server) {
-    server.close();
+const shutdown = async (signal: string) => {
+  logger.info(`${signal} received, shutting down gracefully`);
+
+  try {
+    if (server) {
+      await new Promise<void>(resolve => {
+        server.close(() => resolve());
+      });
+    }
+
+    if (global.io) {
+      global.io.close();
+    }
+
+    await closeQueueWorkers();
+
+    await mongoose.connection.close();
+    await redisStore.close();
+
+    process.exit(0);
+  } catch (error) {
+    errorLogger.error(`Graceful shutdown failed: ${(error as Error).message}`);
+    process.exit(1);
   }
-});
+};
+
+process.on('SIGTERM', () => void shutdown('SIGTERM'));
+process.on('SIGINT', () => void shutdown('SIGINT'));

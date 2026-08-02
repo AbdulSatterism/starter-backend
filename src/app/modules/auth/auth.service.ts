@@ -6,8 +6,10 @@ import { StatusCodes } from 'http-status-codes';
 import { JwtPayload, Secret } from 'jsonwebtoken';
 import config from '../../../config';
 import { emailHelper } from '../../../helpers/emailHelper';
+import { sendOtpSms } from '../../../helpers/smsHelper';
 import { jwtHelper } from '../../../helpers/jwtHelper';
 import { emailTemplate } from '../../../shared/emailTemplate';
+import { redisStore } from '../../../shared/redis';
 import {
   IAuthResetPassword,
   IChangePassword,
@@ -23,6 +25,45 @@ import AppError from '../../errors/AppError';
 import unlinkFile from '../../../shared/unlinkFile';
 import { downloadImage, facebookToken } from './auth.lib';
 import { verifyAppleToken } from '../../../helpers/appleHelper';
+
+const parseDurationToSeconds = (value?: string | number) => {
+  if (!value) {
+    return 60 * 60 * 24 * 7;
+  }
+
+  if (typeof value === 'number') {
+    return value;
+  }
+
+  if (/^\d+$/.test(value)) {
+    return Number(value);
+  }
+
+  const match = /^(\d+)([smhd])$/i.exec(value.trim());
+  if (!match) {
+    return 60 * 60 * 24 * 7;
+  }
+
+  const amount = Number(match[1]);
+  const unit = match[2].toLowerCase();
+
+  if (unit === 's') return amount;
+  if (unit === 'm') return amount * 60;
+  if (unit === 'h') return amount * 60 * 60;
+  return amount * 60 * 60 * 24;
+};
+
+const storeUserSession = async (userId: string, token: string) => {
+  await redisStore.set(
+    `session:${token}`,
+    {
+      userId,
+      createdAt: new Date().toISOString(),
+    },
+    parseDurationToSeconds(config.jwt.jwtRefreshExpiresIn),
+    [`session-user:${userId}`],
+  );
+};
 
 //login
 const loginUserFromDB = async (payload: ILoginData) => {
@@ -68,6 +109,8 @@ const loginUserFromDB = async (payload: ILoginData) => {
     config.jwt.jwtRefreshExpiresIn as string,
   );
 
+  await storeUserSession(isExistUser._id.toString(), refreshToken);
+
   // send user data without password
   const { password: _, ...userWithoutPassword } = isExistUser.toObject();
 
@@ -96,6 +139,22 @@ const forgetPasswordToDB = async (email: string) => {
     expireAt: new Date(Date.now() + 20 * 60000),
   };
   await User.findOneAndUpdate({ email }, { $set: { authentication } });
+
+  await Promise.all([
+    redisStore.setOtp(
+      `reset:${email}`,
+      { otp, userId: isExistUser._id.toString() },
+      20 * 60,
+    ),
+    isExistUser.phone
+      ? sendOtpSms({
+          to: isExistUser.phone,
+          name: isExistUser.name,
+          otp,
+          type: 'RESET',
+        })
+      : Promise.resolve(),
+  ]);
 };
 
 const verifyEmailToDB = async (payload: IVerifyEmail) => {
@@ -113,13 +172,21 @@ const verifyEmailToDB = async (payload: IVerifyEmail) => {
     );
   }
 
+  const otpKey = isExistUser.verified ? `reset:${email}` : `verify:${email}`;
+  const storedOtp = await redisStore.getOtp<{ otp: number; userId: string }>(
+    otpKey,
+  );
+
   // console.log(isExistUser.authentication?.oneTimeCode, { payload });
-  if (isExistUser.authentication?.oneTimeCode !== oneTimeCode) {
+  if (
+    (storedOtp?.otp ?? isExistUser.authentication?.oneTimeCode) !== oneTimeCode
+  ) {
     throw new AppError(StatusCodes.BAD_REQUEST, 'You provided wrong otp');
   }
 
   const date = new Date();
-  if (date > isExistUser.authentication?.expireAt) {
+  const otpExpireAt = isExistUser.authentication?.expireAt;
+  if (!otpExpireAt || date > otpExpireAt) {
     throw new AppError(
       StatusCodes.BAD_REQUEST,
       'Otp already expired, Please try again',
@@ -146,6 +213,8 @@ const verifyEmailToDB = async (payload: IVerifyEmail) => {
     config.jwt.jwtRefreshExpiresIn as string,
   );
 
+  await storeUserSession(isExistUser._id.toString(), refreshToken);
+
   let message;
   let data;
 
@@ -154,6 +223,7 @@ const verifyEmailToDB = async (payload: IVerifyEmail) => {
       { _id: isExistUser._id },
       { verified: true, authentication: { oneTimeCode: null, expireAt: null } },
     );
+    await redisStore.deleteOtp(otpKey);
     message = 'Your email has been successfully verified.';
     data = { user: isExistUser, accessToken, refreshToken };
   } else {
@@ -174,6 +244,7 @@ const verifyEmailToDB = async (payload: IVerifyEmail) => {
       token: accessToken,
       expireAt: new Date(Date.now() + 20 * 60000),
     });
+    await redisStore.deleteOtp(otpKey);
     message = 'Verification Successful';
     data = { user: isExistUser, accessToken, refreshToken };
   }
@@ -237,6 +308,9 @@ const resetPasswordToDB = async (
   await User.findOneAndUpdate({ _id: isExistToken.user }, updateData, {
     new: true,
   });
+
+  await redisStore.deleteOtp(`reset:${isExistUser?.email || ''}`);
+  await redisStore.invalidateTag(`session-user:${isExistToken.user}`);
 };
 
 const changePasswordToDB = async (
@@ -305,6 +379,11 @@ const newAccessTokenToUser = async (token: string) => {
     config.jwt.jwtRefreshSecret as Secret,
   );
 
+  const session = await redisStore.getSession<{ userId: string }>(token);
+  if (!session || session.userId !== verifyUser?.id?.toString()) {
+    throw new AppError(StatusCodes.UNAUTHORIZED, 'Unauthorized access');
+  }
+
   const isExistUser = await User.findById(verifyUser?.id);
   if (!isExistUser) {
     throw new AppError(StatusCodes.UNAUTHORIZED, 'Unauthorized access');
@@ -356,6 +435,22 @@ const resendVerificationEmailToDB = async (email: string) => {
     { $set: { authentication } },
     { new: true },
   );
+
+  await Promise.all([
+    redisStore.setOtp(
+      `verify:${email}`,
+      { otp, userId: existingUser._id.toString() },
+      20 * 60,
+    ),
+    existingUser.phone
+      ? sendOtpSms({
+          to: existingUser.phone,
+          name: existingUser.name,
+          otp,
+          type: 'VERIFY',
+        })
+      : Promise.resolve(),
+  ]);
 };
 
 //! login with google
@@ -429,6 +524,8 @@ const googleLogin = async (payload: IGoogleLoginPayload) => {
     config.jwt.jwtRefreshSecret as Secret,
     config.jwt.jwtRefreshExpiresIn as string,
   );
+
+  await storeUserSession(user._id.toString(), refreshToken);
 
   // Remove sensitive data before sending response
   const userObject: any = user.toObject();
@@ -523,6 +620,8 @@ const facebookLogin = async (payload: { token: string }) => {
       ),
     ]);
 
+    await storeUserSession(user._id.toString(), refreshToken);
+
     const { password, authentication, ...userObject } = user.toObject();
 
     return { user: userObject, accessToken, refreshToken };
@@ -600,6 +699,8 @@ const appleLogin = async (payload: { token: string }) => {
         config.jwt.jwtRefreshExpiresIn as string,
       ),
     ]);
+
+    await storeUserSession(user._id.toString(), refreshToken);
 
     // Step 5 — Prepare response
     const { password, authentication, ...userObject } = user.toObject();

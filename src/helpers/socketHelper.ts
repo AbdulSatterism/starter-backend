@@ -1,16 +1,54 @@
 /* eslint-disable no-console */
 import chalk from 'chalk';
+import { Secret } from 'jsonwebtoken';
 import { Server } from 'socket.io';
+import config from '../config';
+import { jwtHelper } from './jwtHelper';
 import { logger } from '../shared/logger';
 
 const socket = (io: Server) => {
-  io.on('connection', socket => {
-    console.log('A user connected:', socket.id);
+  io.use((socket, next) => {
+    try {
+      const tokenFromAuth = socket.handshake.auth?.token;
+      const authorizationHeader = socket.handshake.headers.authorization;
+      const token =
+        typeof tokenFromAuth === 'string' && tokenFromAuth.length > 0
+          ? tokenFromAuth
+          : typeof authorizationHeader === 'string' &&
+              authorizationHeader.startsWith('Bearer ')
+            ? authorizationHeader.split(' ')[1]
+            : null;
 
-    // Join a chat room
+      if (!token) {
+        return next(new Error('Unauthorized socket connection'));
+      }
+
+      const decoded = jwtHelper.verifyToken(
+        token,
+        config.jwt.jwt_secret as Secret,
+      );
+
+      socket.data.user = decoded;
+      next();
+    } catch (error) {
+      next(new Error('Unauthorized socket connection'));
+    }
+  });
+
+  io.on('connection', socket => {
+    const userId =
+      socket.data.user?.id?.toString?.() || socket.data.user?.id || 'anonymous';
+    logger.info(chalk.green(`Socket connected: ${socket.id} (${userId})`));
+
+    if (userId !== 'anonymous') {
+      socket.join(`user:${userId}`);
+    }
+
     socket.on('join', roomId => {
-      socket.join(roomId);
-      console.log(`User joined room: ${roomId}`);
+      if (typeof roomId === 'string' && roomId.trim().length > 0) {
+        socket.join(roomId);
+        logger.info(`User joined room: ${roomId}`);
+      }
     });
 
     // socket.on('send-message', async ({ roomId, senderId, message }) => {
@@ -44,8 +82,8 @@ const socket = (io: Server) => {
     // });
 
     // Handle disconnection
-    socket.on('disconnect', () => {
-      logger.info(chalk.red('A user disconnect'));
+    socket.on('disconnect', reason => {
+      logger.info(chalk.red(`Socket disconnected: ${socket.id} (${reason})`));
     });
   });
 };

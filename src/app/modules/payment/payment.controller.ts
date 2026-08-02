@@ -88,3 +88,4 @@
 //   getSinglePaymentDetails,
 //   specificUserPayments,
 // };
+export const paymentControllers = {} as Record<string, never>;

@@ -1,16 +1,15 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import bcrypt from 'bcrypt';
-import { StatusCodes } from 'http-status-codes';
 import { model, Schema } from 'mongoose';
 import config from '../../../config';
 import { IUser, UserModal } from './user.interface';
-import AppError from '../../errors/AppError';
 
 const userSchema = new Schema<IUser, UserModal>(
   {
     name: {
       type: String,
-      required: true,
+      required: false,
+      default: '',
     },
     email: {
       type: String,
@@ -35,7 +34,8 @@ const userSchema = new Schema<IUser, UserModal>(
     },
     phone: {
       type: String,
-      required: true,
+      required: false,
+      default: '',
     },
     role: {
       type: String,
@@ -43,14 +43,16 @@ const userSchema = new Schema<IUser, UserModal>(
     },
     image: {
       type: String,
-      default: '/default/user.jpg',
+      default: '',
     },
     gender: {
       type: String,
       enum: ['MALE', 'FEMALE', 'OTHERS'],
+      default: 'MALE',
     },
     age: {
       type: Number,
+      default: null,
     },
     payment: {
       type: Boolean,
@@ -90,6 +92,11 @@ const userSchema = new Schema<IUser, UserModal>(
   { timestamps: true },
 );
 
+userSchema.index({ name: 'text', email: 'text', phone: 'text' });
+userSchema.index({ phone: 1 });
+userSchema.index({ verified: 1, role: 1, createdAt: -1 });
+userSchema.index({ createdAt: -1 });
+
 //exist user check
 userSchema.statics.isExistUserById = async (id: string) => {
   const isExist = await User.findById(id);
@@ -117,10 +124,8 @@ userSchema.statics.isMatchPassword = async (
 
 //check user
 userSchema.pre('save', async function (next) {
-  //check user
-  const isExist = await User.findOne({ email: this.email });
-  if (isExist) {
-    throw new AppError(StatusCodes.BAD_REQUEST, 'Email already used');
+  if (!this.isModified('password')) {
+    return next();
   }
 
   //password hash

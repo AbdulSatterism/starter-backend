@@ -7,7 +7,7 @@ import sendResponse from '../../../shared/sendResponse';
 import { UserService } from './user.service';
 import getFilePath from '../../../shared/getFilePath';
 
-const createUser = catchAsync(async (req: Request, res: Response) => {
+const createUser = catchAsync(async (req, res) => {
   const value = {
     ...req.body,
   };
@@ -38,7 +38,7 @@ const getAllUser = catchAsync(async (req, res) => {
   });
 });
 
-const getUserProfile = catchAsync(async (req: Request, res: Response) => {
+const getUserProfile = catchAsync(async (req, res) => {
   const user = req.user;
   const result = await UserService.getUserProfileFromDB(user);
 
@@ -51,7 +51,7 @@ const getUserProfile = catchAsync(async (req: Request, res: Response) => {
 });
 
 //update profile
-const updateProfile = catchAsync(async (req: Request, res: Response) => {
+const updateProfile = catchAsync(async (req, res) => {
   const user = req.user;
 
   const result = await UserService.updateProfileToDB(user, req.body);
@@ -64,7 +64,7 @@ const updateProfile = catchAsync(async (req: Request, res: Response) => {
   });
 });
 
-const getSingleUser = catchAsync(async (req: Request, res: Response) => {
+const getSingleUser = catchAsync(async (req , res) => {
   const result = await UserService.getSingleUser(req.params.id);
   sendResponse(res, {
     success: true,
@@ -75,19 +75,47 @@ const getSingleUser = catchAsync(async (req: Request, res: Response) => {
 });
 
 // search by phone number
-const searchByPhone = catchAsync(async (req: Request, res: Response) => {
+const searchByPhone = catchAsync(async (req, res) => {
   const searchTerm = req.query.searchTerm;
   const userId = req?.user?.id;
 
   const result = await UserService.searchUserByPhone(
     searchTerm as string,
     userId,
+    req.query,
   );
 
   sendResponse(res, {
     success: true,
     statusCode: StatusCodes.OK,
     message: 'get user by searching phone number',
+    data: result,
+  });
+});
+
+const getUsersBatch = catchAsync(async (req, res) => {
+  const ids = String(req.query.ids || '')
+    .split(',')
+    .map(id => id.trim())
+    .filter(Boolean);
+
+  const result = await UserService.getUsersBatch(ids);
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'Batch users retrieved successfully',
+    data: result,
+  });
+});
+
+const getUserStats = catchAsync(async (_req, res) => {
+  const result = await UserService.getUserStats();
+
+  sendResponse(res, {
+    success: true,
+    statusCode: StatusCodes.OK,
+    message: 'User stats retrieved successfully',
     data: result,
   });
 });
@@ -99,4 +127,6 @@ export const UserController = {
   searchByPhone,
   getSingleUser,
   getAllUser,
+  getUsersBatch,
+  getUserStats,
 };

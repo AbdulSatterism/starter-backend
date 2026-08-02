@@ -9,6 +9,33 @@ const notificationSchema = new Schema<TNotification>(
     patientName: {
       type: String,
     },
+    receiver: {
+      type: String,
+    },
+    receiverGroupId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Group',
+    },
+    senderGroupId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Group',
+    },
+    invitationId: {
+      type: Schema.Types.ObjectId,
+      ref: 'Invitation',
+    },
+    type: {
+      type: String,
+      enum: ['ADMIN', 'USER'],
+    },
+    userId: {
+      type: Schema.Types.ObjectId,
+      ref: 'User',
+    },
+    read: {
+      type: Boolean,
+      default: false,
+    },
   },
   {
     timestamps: true,

@@ -3,9 +3,9 @@
 import { Model } from 'mongoose';
 
 export type IUser = {
-  name: string;
+  name?: string;
   email: string;
-  phone: string;
+  phone?: string;
   password: string;
   googleId?: string;
   facebookId?: string;
