@@ -40,7 +40,7 @@ const createUserFromDb = async (payload: IUser) => {
 
   const otp = generateOTP();
   const emailValues = {
-    name: result.name,
+    name: result.name || 'User',
     otp,
     email: result.email,
   };
@@ -70,7 +70,7 @@ const createUserFromDb = async (payload: IUser) => {
     result.phone
       ? sendOtpSms({
           to: result.phone,
-          name: result.name,
+          name: result.name || 'User',
           otp,
           type: 'VERIFY',
         })
