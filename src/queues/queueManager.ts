@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { Queue, Worker, JobsOptions } from 'bullmq';
+import { Queue, Worker, JobsOptions, Job } from 'bullmq';
 import IORedis from 'ioredis';
 import config from '../config';
 import { sendMailDirect } from '../shared/mailTransport';
@@ -59,6 +59,61 @@ const notificationQueue = queueConnection
 
 const workers: Worker[] = [];
 
+const createWorkers = () => {
+  if (!queueConnection) return;
+
+  if (emailQueue) {
+    const emailWorker = new Worker(
+      'email',
+      async (job: Job) => {
+        try {
+          await sendMailDirect(job.data as any);
+        } catch (err) {
+          throw err;
+        }
+      },
+      { connection: queueConnection, concurrency: config.queue.concurrency },
+    );
+
+    workers.push(emailWorker);
+  }
+
+  if (smsQueue) {
+    const smsWorker = new Worker(
+      'sms',
+      async (job: Job) => {
+        try {
+          await sendSmsDirect(job.data as any);
+        } catch (err) {
+          throw err;
+        }
+      },
+      { connection: queueConnection, concurrency: config.queue.concurrency },
+    );
+
+    workers.push(smsWorker);
+  }
+
+  // placeholder for notification worker if needed
+  if (notificationQueue) {
+    const notificationWorker = new Worker(
+      'notification',
+      async (job: Job) => {
+        // implement notification processing here
+        return Promise.resolve();
+      },
+      { connection: queueConnection, concurrency: config.queue.concurrency },
+    );
+
+    workers.push(notificationWorker);
+  }
+};
+
+const startQueueWorkers = async () => {
+  if (!queueConnection) return;
+  createWorkers();
+};
+
 const enqueueEmail = async (payload: QueueJobPayload) => {
   if (!emailQueue) {
     return sendMailDirect(payload as any);
@@ -99,4 +154,4 @@ const closeQueueWorkers = async () => {
   );
 };
 
-export { closeQueueWorkers, enqueueEmail, enqueueSms };
+export { closeQueueWorkers, enqueueEmail, enqueueSms, startQueueWorkers };

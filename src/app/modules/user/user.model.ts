@@ -93,7 +93,6 @@ const userSchema = new Schema<IUser, UserModal>(
 );
 
 userSchema.index({ name: 'text', email: 'text', phone: 'text' });
-userSchema.index({ phone: 1 });
 userSchema.index({ verified: 1, role: 1, createdAt: -1 });
 userSchema.index({ createdAt: -1 });
 

@@ -6,7 +6,7 @@ import mongoose from 'mongoose';
 import { Server } from 'socket.io';
 import app from './app';
 import config from './config';
-import { closeQueueWorkers, startQueueWorkers } from './queues/queueManager';
+import { closeQueueWorkers } from './queues/queueManager';
 import { socketHelper } from './helpers/socketHelper';
 import { errorLogger, logger } from './shared/logger';
 import { redisStore } from './shared/redis';
@@ -51,7 +51,7 @@ async function main() {
     //@ts-ignore
     global.io = io;
 
-    await startQueueWorkers();
+    // queue workers should run in a separate process (see src/worker.ts)
   } catch (error) {
     errorLogger.error(chalk.red('🤢 Failed to connect Database'));
     process.exit(1);

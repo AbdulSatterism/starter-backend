@@ -1,54 +1,99 @@
 /* eslint-disable no-undef */
 import dotenv from 'dotenv';
 import path from 'path';
+import { z } from 'zod';
+
 dotenv.config({ path: path.join(process.cwd(), '.env') });
 
+const EnvSchema = z.object({
+  IP_ADDRESS: z.string().optional().default('0.0.0.0'),
+  DATABASE_URL: z.string().min(1),
+  NODE_ENV: z.string().optional().default('development'),
+  PORT: z.string().optional().default('3000'),
+  BCRYPT_SALT_ROUNDS: z.string().optional(),
+  REDIS_URL: z.string().optional(),
+  REDIS_HOST: z.string().optional(),
+  REDIS_PORT: z.string().optional(),
+  REDIS_PASSWORD: z.string().optional(),
+  REDIS_DB: z.string().optional(),
+  QUEUE_CONCURRENCY: z.string().optional().default('10'),
+  SMS_WEBHOOK_URL: z.string().optional(),
+  SMS_API_KEY: z.string().optional(),
+  SMS_SENDER_ID: z.string().optional(),
+  STRIPE_SECRET_KEY: z.string().optional(),
+  STRIPE_WEBHOOK_SECRET: z.string().optional(),
+  GOOGLE_MAPS: z.string().optional(),
+  JWT_SECRET: z.string().optional(),
+  JWT_EXPIRE_IN: z.string().optional(),
+  JWT_REFRESH_SECRET: z.string().optional(),
+  JWT_REFRESH_EXPIRES_IN: z.string().optional(),
+  EMAIL_FROM: z.string().optional(),
+  EMAIL_USER: z.string().optional(),
+  EMAIL_PORT: z.string().optional(),
+  EMAIL_HOST: z.string().optional(),
+  EMAIL_PASS: z.string().optional(),
+  ADMIN_EMAIL: z.string().optional(),
+  ADMIN_PASSWORD: z.string().optional(),
+  GPT_API: z.string().optional(),
+  GPT_MODEL_URL: z.string().optional(),
+});
+
+const parsed = EnvSchema.safeParse(process.env);
+
+if (!parsed.success) {
+  throw new Error(
+    `Invalid environment configuration: ${JSON.stringify(parsed.error.format())}`,
+  );
+}
+
+const env = parsed.data;
+
 export default {
-  ip_address: process.env.IP_ADDRESS ?? '0.0.0.0',
-  database_url: process.env.DATABASE_URL,
-  node_env: process.env.NODE_ENV,
-  port: process.env.PORT,
-  bcrypt_salt_rounds: process.env.BCRYPT_SALT_ROUNDS,
+  ip_address: env.IP_ADDRESS,
+  database_url: env.DATABASE_URL,
+  node_env: env.NODE_ENV,
+  port: Number(env.PORT),
+  bcrypt_salt_rounds: env.BCRYPT_SALT_ROUNDS,
   redis: {
-    url: process.env.REDIS_URL,
-    host: process.env.REDIS_HOST,
-    port: process.env.REDIS_PORT,
-    password: process.env.REDIS_PASSWORD,
-    db: process.env.REDIS_DB,
+    url: env.REDIS_URL,
+    host: env.REDIS_HOST,
+    port: env.REDIS_PORT,
+    password: env.REDIS_PASSWORD,
+    db: env.REDIS_DB,
   },
   queue: {
-    concurrency: Number(process.env.QUEUE_CONCURRENCY || 10),
+    concurrency: Number(env.QUEUE_CONCURRENCY || 10),
   },
   sms: {
-    webhookUrl: process.env.SMS_WEBHOOK_URL,
-    apiKey: process.env.SMS_API_KEY,
-    senderId: process.env.SMS_SENDER_ID,
+    webhookUrl: env.SMS_WEBHOOK_URL,
+    apiKey: env.SMS_API_KEY,
+    senderId: env.SMS_SENDER_ID,
   },
-  stripe_api_secret: process.env.STRIPE_SECRET_KEY,
-  google_maps: process.env.GOOGLE_MAPS,
+  stripe_api_secret: env.STRIPE_SECRET_KEY,
+  google_maps: env.GOOGLE_MAPS,
   jwt: {
-    jwt_secret: process.env.JWT_SECRET,
-    jwt_expire_in: process.env.JWT_EXPIRE_IN,
-    jwtRefreshSecret: process.env.JWT_REFRESH_SECRET,
-    jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN,
+    jwt_secret: env.JWT_SECRET,
+    jwt_expire_in: env.JWT_EXPIRE_IN,
+    jwtRefreshSecret: env.JWT_REFRESH_SECRET,
+    jwtRefreshExpiresIn: env.JWT_REFRESH_EXPIRES_IN,
   },
   payment: {
-    stripe_secret_key: process.env.STRIPE_SECRET_KEY,
-    stripe_webhook_secret: process.env.STRIPE_WEBHOOK_SECRET,
+    stripe_secret_key: env.STRIPE_SECRET_KEY,
+    stripe_webhook_secret: env.STRIPE_WEBHOOK_SECRET,
   },
   email: {
-    from: process.env.EMAIL_FROM,
-    user: process.env.EMAIL_USER,
-    port: process.env.EMAIL_PORT,
-    host: process.env.EMAIL_HOST,
-    pass: process.env.EMAIL_PASS,
+    from: env.EMAIL_FROM,
+    user: env.EMAIL_USER,
+    port: env.EMAIL_PORT,
+    host: env.EMAIL_HOST,
+    pass: env.EMAIL_PASS,
   },
   admin: {
-    email: process.env.ADMIN_EMAIL,
-    password: process.env.ADMIN_PASSWORD,
+    email: env.ADMIN_EMAIL,
+    password: env.ADMIN_PASSWORD,
   },
   gpt: {
-    key: process.env.GPT_API,
-    gpt_model_url: process.env.GPT_MODEL_URL,
+    key: env.GPT_API,
+    gpt_model_url: env.GPT_MODEL_URL,
   },
 };
